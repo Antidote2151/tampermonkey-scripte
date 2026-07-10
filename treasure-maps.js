@@ -1,8 +1,8 @@
 // ==UserScript==
-// @name         SceneNZBs.com - Auf IMDb/TMDB/TVDB/AniDB ein SceneNZBs-Such-Icon beim Titel ergänzen
+// @name         treasure-maps.com - Auf IMDb/TMDB/TVDB/AniDB ein treasure-maps-Such-Icon beim Titel ergänzen
 // @version      2026.04.07.0830
-// @author       SceneNZBs.com
-// @description  Fügt auf IMDb, TMDB, TVDB und AniDB ein anklickbares SceneNZBs-Icon ein, um direkt auf SceneNZBs mit der Film-ID oder mit dem Serien-/Anime-Titel zu suchen.
+// @author       treasure-maps.com
+// @description  Fügt auf IMDb, TMDB, TVDB und AniDB ein anklickbares treasure-maps-Icon ein, um direkt auf treasure-maps Seite mit der Film-ID oder mit dem Serien-/Anime-Titel zu suchen.
 // @match        https://www.imdb.com/title/*
 // @match        https://www.imdb.com/*/title/*
 // @match        https://www.themoviedb.org/movie/*
@@ -35,7 +35,7 @@ const SHOW_ICON_ON = {
     'use strict';
 
     // Basis-URL von SceneNZBs
-    const SCENE_BASE = 'https://scenenzbs.com';
+    const SCENE_BASE = 'https://treasure-maps.com';
 
     // Icon-Grössen: grosses Icon unter Haupttitel, kleines Icon beim Originaltitel
     const ICON_MAIN = 24;
@@ -95,7 +95,7 @@ const SHOW_ICON_ON = {
         a.rel = 'noopener noreferrer';
 
         // Tooltip-Text
-        a.title = `Suche auf SceneNZBs: ${title}`;
+        a.title = `Suche auf treasure-maps: ${title}`;
 
         a.style.display = 'inline-block';
         a.style.marginLeft = '6px';
@@ -105,7 +105,7 @@ const SHOW_ICON_ON = {
         img.src = GM_info.script.icon;
         img.width = size;
         img.height = size;
-        img.alt = 'SceneNZBs';
+        img.alt = 'treasure-maps';
 
         // Sichtbarkeit des rot-schwarzen Favicon.ico verbessern mit weissem Hintergrundkreis
         img.style.background = "white";
@@ -132,12 +132,12 @@ const SHOW_ICON_ON = {
         element.insertAdjacentElement('afterend', wrap);
     }
 
-    // Baut eine SceneNZBs-Textsuche MIT Kategorie
+    // Baut eine treasure-maps-Textsuche MIT Kategorie
     function buildSceneTextUrlWithCat(title, cat) {
         return `${SCENE_BASE}/search?cat=${encodeURIComponent(cat)}&q=${encodeURIComponent(cleanTitle(title))}`;
     }
 
-    // Baut eine SceneNZBs-Textsuche OHNE Kategorie
+    // Baut eine treasure-maps-Textsuche OHNE Kategorie
     function buildSceneTextUrl(title) {
         return `${SCENE_BASE}/search?cat=-1&q=${encodeURIComponent(cleanTitle(title))}`;
     }
@@ -221,7 +221,7 @@ const SHOW_ICON_ON = {
         const isMovie = path.startsWith('/movie/');
         const isSeries = path.startsWith('/tv/');
 
-        // SceneNZBs-Kategorien für Filme/Serien
+        // treasure-maps-Kategorien für Filme/Serien
         const cat = isMovie ? '2000,2100' : (isSeries ? '5000,5100' : null);
         if (!cat) return;
 
@@ -269,7 +269,7 @@ const SHOW_ICON_ON = {
         const isMovie = path.startsWith('/movies/');
         const isSeries = path.startsWith('/series/');
 
-        // SceneNZBs-Kategorien für Filme/Serien
+        // treasure-maps-Kategorien für Filme/Serien
         const cat = isMovie ? '2000,2100' : (isSeries ? '5000,5100' : null);
         if (!cat) return;
 
@@ -288,7 +288,7 @@ const SHOW_ICON_ON = {
     // AniDB-Handler
     // Anime-Serien → Textsuche mit Kategorien "TV-Anime" 5070 und "TV-DE-Anime" 5170
     // Anime-Filme  → Textsuche mit Kategorien "Movies"   2000 und "Movies-DE"   2100
-    // SceneNZBs-Icon erscheint im Tab "Info" und im Tab "Title":
+    // treasure-maps-Icon erscheint im Tab "Info" und im Tab "Title":
     // 1) Links vom Main Title
     // 2) Links vor dem Official Title (englisch)
     // 3) Links vor allen weiteren Official Titles in anderen Sprachen (z.B. japanisch)
@@ -316,7 +316,7 @@ const SHOW_ICON_ON = {
         const icon = createSceneLink(url, title, ICON_ORIGINAL);
 
         // ----------------------------------------------------------------------
-        // Alle Abstände des SceneNZBs-Icons (oben, rechts, unten, links)
+        // Alle Abstände des treasure-maps-Icons (oben, rechts, unten, links)
         // margin-top/margin-right/margin-bottom/margin-left in einer Zeile:
         // margin:    TOP RIGHT BOTTOM LEFT
         // Beispiel:  5px 6px   0px    -2px
@@ -369,7 +369,7 @@ const SHOW_ICON_ON = {
 
     // --------------------------------------------------------------------------------
     // MutationObserver für den 2. Tab "Titles" (#tab_2_pane)
-    // Fügt das SceneNZBs-Icon NUR für den Main Title ein, sobald AniDB den Tab rendert
+    // Fügt das treasure-maps NUR für den Main Title ein, sobald AniDB den Tab rendert
     // --------------------------------------------------------------------------------
     const titlesPane = document.querySelector('#tab_2_pane');
 
