@@ -1,6 +1,6 @@
 // ==UserScript==
 // @name         treasure-maps.com - Auf IMDb/TMDB/TVDB/AniDB/Xrel ein Treasure Maps-Such-Icon beim Titel ergänzen
-// @version      2026.07.12.0001
+// @version      2026.07.12.0002
 // @author       treasure-maps.com
 // @description  Fügt auf IMDb, TMDB, TVDB, AniDB und Xrel.to ein anklickbares treasure-maps-Icon ein, um direkt auf der Treasure Maps Seite mit der Film-ID, dem Serien-/Anime-Titel oder dem Release-Namen zu suchen.
 // @match        https://www.imdb.com/title/*
@@ -421,7 +421,12 @@ const SHOW_ICON_ON = {
         const url = `${TM_BASE}/search?cat=-1&q=${encodeURIComponent(title)}`;
         const icon = createSceneLink(url, title, ICON_ORIGINAL);
         icon.style.margin = "0px 0px 0px 5px";
-        icon.style.verticalAlign = "middle";
+
+        // Wie im alten Xrel-Script: keine Link-Unterstreichung unter dem Logo
+        // und das Bild selbst (nicht der Link) mittig zur Textzeile ausrichten
+        icon.style.textDecoration = "none";
+        icon.style.display = "inline";
+        icon.firstChild.style.verticalAlign = "middle";
 
         // Icon direkt HINTER dem Referenz-Element einfügen
         refNode.parentNode.insertBefore(icon, refNode.nextSibling);
