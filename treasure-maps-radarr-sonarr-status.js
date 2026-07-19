@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Treasure Maps → Radarr/Sonarr
 // @namespace    treasure-maps-community
-// @version      0.6
+// @version      0.10
 // @description  Zeigt überall (Detailseiten, Browse-Karten, Listen, Watchlist), ob ein Film/eine Serie schon in Radarr/Sonarr ist, und fügt sie per Klick hinzu. URL/API-Key bleiben lokal im Browser.
 // @match        https://treasure-maps.com/*
 // @grant        GM_xmlhttpRequest
@@ -98,7 +98,7 @@
     // Nur die Felder speichern, die für die Badges gebraucht werden
     function slim(app, list) {
         return list.map((x) => app === 'radarr'
-            ? { imdbId: x.imdbId, tmdbId: x.tmdbId, hasFile: x.hasFile, monitored: x.monitored, isAvailable: x.isAvailable,
+            ? { imdbId: x.imdbId, tmdbId: x.tmdbId, hasFile: x.hasFile, monitored: x.monitored, isAvailable: x.isAvailable, sizeOnDisk: x.sizeOnDisk,
                 movieFile: x.movieFile && x.movieFile.quality ? { quality: x.movieFile.quality } : undefined }
             : { imdbId: x.imdbId, tvdbId: x.tvdbId, monitored: x.monitored, ended: x.ended, statistics: x.statistics,
                 seasons: (x.seasons || []).map((se) => ({ seasonNumber: se.seasonNumber, monitored: se.monitored, statistics: se.statistics })) });
@@ -198,6 +198,11 @@
         return res;
     }
 
+    // Overlay-Badges brauchen einen positionierten Container, sonst landen sie im Viewport
+    function ensurePositioned(el) {
+        if (getComputedStyle(el).position === 'static') el.style.position = 'relative';
+    }
+
     function makeBadge(app, item, ids, css) {
         const d = describe(app, item);
         const clickable = d.st === 'missing';
@@ -235,6 +240,7 @@
     function placeBadge(el, app, item, ids) {
         const cover = el.querySelector('.browse-card__front, .release-list-card__media');
         if (cover) {
+            ensurePositioned(cover);
             const top = cover.querySelector('.browse-card__flag, .release-list-card__badge') ? '2.4rem' : '.5rem';
             cover.appendChild(makeBadge(app, item, ids, 'position:absolute;top:' + top + ';left:.5rem;z-index:2;'));
         } else {
@@ -281,6 +287,7 @@
                 const imdb = 'tt' + (img.getAttribute('src').match(IMG_RE))[1];
                 const parent = img.parentElement;
                 if (!parent) continue;
+                ensurePositioned(parent);
                 const top = parent.querySelector('.browse-card__flag, .release-list-card__badge') ? '2.4rem' : '.5rem';
                 const b = makeBadge('radarr', byImdb.get(imdb), { imdb },
                     'position:absolute;top:' + top + ';left:.5rem;z-index:2;');
@@ -298,7 +305,7 @@
         return null;
     }
 
-    const onDetailPage = location.pathname.includes('details') || /^\/series\/\d+$/.test(location.pathname);
+    const onDetailPage = location.pathname.includes('details') || /^\/(series|movies|anime)\/\d+$/.test(location.pathname);
     const connectShown = {};
 
     function scanLinks() {
@@ -340,9 +347,120 @@
         }
     }
 
+    function fmtSize(b) {
+        if (!b) return null;
+        const units = ['B', 'KB', 'MB', 'GB', 'TB'];
+        let i = 0;
+        while (b >= 1024 && i < units.length - 1) { b /= 1024; i++; }
+        return b.toFixed(b >= 100 ? 0 : 1) + ' ' + units[i];
+    }
+
+    // Sichtbare Info-Zeilen für das Toolbox-Panel (Film-/Serien-/Anime-Seiten)
+    function panelLines(app, item) {
+        const lines = [];
+        if (app === 'radarr') {
+            if (item.hasFile) {
+                const q = item.movieFile && item.movieFile.quality && item.movieFile.quality.quality ? ' (' + item.movieFile.quality.quality.name + ')' : '';
+                lines.push({ text: '✓ Vorhanden' + q, color: COLOR.have });
+            } else {
+                lines.push({ text: item.isAvailable === false ? 'Noch nicht erschienen' : 'Download fehlt noch', color: COLOR.partial });
+            }
+            const size = fmtSize(item.sizeOnDisk);
+            if (size) lines.push({ text: 'Größe: ' + size });
+        } else {
+            const s = item.statistics || {};
+            const have = s.episodeFileCount || 0, total = s.episodeCount || 0;
+            if (total > 0 && have >= total) lines.push({ text: '✓ Komplett (' + have + '/' + total + ' Episoden)', color: COLOR.have });
+            else lines.push({ text: have + '/' + total + ' Episoden', color: COLOR.partial });
+            for (const se of item.seasons || []) {
+                const st2 = se.statistics || {};
+                if (!st2.totalEpisodeCount) continue;
+                const name = se.seasonNumber === 0 ? 'Specials' : 'S' + String(se.seasonNumber).padStart(2, '0');
+                const ok = (st2.episodeCount || 0) > 0 && (st2.episodeFileCount || 0) >= st2.episodeCount;
+                lines.push({ text: name + ': ' + (st2.episodeFileCount || 0) + '/' + (st2.episodeCount || 0)
+                        + (se.monitored === false ? ' · nicht überwacht' : ''), color: ok ? COLOR.have : undefined });
+            }
+            lines.push({ text: item.ended ? 'Beendet' : 'Läuft' });
+            const size = fmtSize(s.sizeOnDisk);
+            if (size) lines.push({ text: 'Größe: ' + size });
+        }
+        if (item.monitored === false) lines.push({ text: 'Nicht überwacht', color: COLOR.partial });
+        return lines;
+    }
+
+    // Info-Panel in der Aktions-Spalte rechts (unter "Add to My Movies" / "My Shows")
+    function renderPanel() {
+        const box = document.querySelector('.series-actions-toolbox');
+        if (!box || box.dataset.rsPanel) return;
+        let app = null;
+        const ids = {};
+        for (const a of document.querySelectorAll('a[href]')) {
+            const hit = matchLink(a.getAttribute('href') || '');
+            if (!hit) continue;
+            if (hit.app === 'sonarr') { app = 'sonarr'; ids.tvdb = hit.ids.tvdb; break; }
+            app = 'radarr';
+            Object.assign(ids, hit.ids);
+        }
+        if (!app || !isConfigured(app)) return;
+        box.dataset.rsPanel = '1';
+
+        // Das Panel ersetzt Inline-Badges an den IMDb/TMDB/TVDB-Buttons und das Cover-Overlay dieser Seite
+        for (const a of document.querySelectorAll('a[href]')) {
+            if (matchLink(a.getAttribute('href') || '')) a.dataset.rsDone = '1';
+        }
+        for (const img of document.querySelectorAll('img[src*="movies_"]')) img.dataset.rsDone = '1';
+
+        const hr = document.createElement('hr');
+        hr.className = 'series-actions-toolbox-divider';
+        const lbl = document.createElement('span');
+        lbl.className = 'series-actions-toolbox-label';
+        lbl.textContent = label[app];
+        const body = document.createElement('div');
+        body.style.cssText = 'font-size:.85em;display:flex;flex-direction:column;gap:.25rem;';
+        body.textContent = 'Lade …';
+        box.appendChild(hr);
+        box.appendChild(lbl);
+        box.appendChild(body);
+
+        const line = (text, color) => {
+            const div = document.createElement('div');
+            div.textContent = text;
+            if (color) div.style.color = color;
+            body.appendChild(div);
+        };
+
+        library(app).then(({ byImdb, byNum }) => {
+            const item = ids.tvdb ? byNum.get(ids.tvdb)
+                : (ids.tmdb && byNum.get(ids.tmdb)) || (ids.imdb && byImdb.get(ids.imdb));
+            body.textContent = '';
+            if (!item) {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'btn btn-sm btn-primary w-100';
+                btn.textContent = 'Zu ' + label[app] + ' hinzufügen';
+                btn.addEventListener('click', async () => {
+                    btn.disabled = true;
+                    btn.textContent = 'Wird hinzugefügt …';
+                    try {
+                        await add(app, ids);
+                        btn.remove();
+                        line('✓ Hinzugefügt — Suche läuft', COLOR.have);
+                    } catch (e) {
+                        btn.textContent = 'Fehler: ' + e.message;
+                        btn.disabled = false;
+                    }
+                });
+                body.appendChild(btn);
+                return;
+            }
+            for (const l of panelLines(app, item)) line(l.text, l.color);
+        }).catch((e) => { body.textContent = label[app] + ': ' + e.message; });
+    }
+
     function scanAll() {
         scanAttrs();
         pinTvContainers();
+        renderPanel();
         scanCards();
         scanLinks();
     }
